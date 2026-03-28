@@ -18,8 +18,12 @@
 #include <stdint.h>		  // defines: uint8_t, uint32_t
 #include <time.h>		  // defines: time
 #include <signal.h>		  // defines: signal, SIGINT
+#include <linux/input.h>  // defines: KEY_*
+#include <fcntl.h>        // defines: open, read, O_*
 
 #define SIZE 4
+
+int input_fd;
 
 // this function receives 2 pointers (indicated by *) so it can set their values
 void getColors(uint8_t value, uint8_t scheme, uint8_t *foreground, uint8_t *background)
@@ -429,6 +433,7 @@ bool testSucceed()
 void signal_callback_handler(int signum)
 {
 	printf("         TERMINATED         \n");
+	close(input_fd);
 	setBufferedInput(true);
 	// make cursor visible, reset all modes
 	printf("\033[?25h\033[m");
@@ -486,6 +491,15 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	input_fd = open("/dev/input/event0", O_RDONLY);
+
+	if (input_fd < 0) {
+		perror("open");
+		return EXIT_FAILURE;
+	}
+
+	struct input_event ev;
+
 	// make cursor invisible, erase entire screen
 	printf("\033[?25l\033[2J");
 
@@ -499,36 +513,25 @@ int main(int argc, char *argv[])
 	printf("2048.c ←, ↑, →, ↓ or q 0 pts\n");
 	while (true)
 	{
-		c = getchar();
-		if (c == EOF)
-		{
-			puts("\nError! Cannot read keyboard input!");
-			break;
+		if (read(input_fd, &ev, sizeof(ev)) == sizeof(ev) && ev.type == EV_KEY && ev.value == 1) {
+			c = ev.code;
+		}
+		else {
+			usleep(150 * 1000);
+			continue;
 		}
 		switch (c)
 		{
-		case 52:  // '4' key
-		case 97:  // 'a' key
-		case 104: // 'h' key
-		case 68:  // left arrow
+		case KEY_PLAYPAUSE:
 			success = moveLeft(board, &score);
 			break;
-		case 54:  // '6' key
-		case 100: // 'd' key
-		case 108: // 'l' key
-		case 67:  // right arrow
+		case KEY_MENU:
 			success = moveRight(board, &score);
 			break;
-		case 56:  // '8' key
-		case 119: // 'w' key
-		case 107: // 'k' key
-		case 65:  // up arrow
+		case KEY_VOLUMEUP:
 			success = moveUp(board, &score);
 			break;
-		case 50:  // '2' key
-		case 115: // 's' key
-		case 106: // 'j' key
-		case 66:  // down arrow
+		case KEY_VOLUMEDOWN:
 			success = moveDown(board, &score);
 			break;
 		default:
@@ -546,28 +549,13 @@ int main(int argc, char *argv[])
 				break;
 			}
 		}
-		if (c == 'q')
+		if (c == KEY_POWER)
 		{
-			printf("        QUIT? (y/n)         \n");
-			c = getchar();
-			if (c == 'y')
-			{
-				break;
-			}
-			drawBoard(board, scheme, score);
-		}
-		if (c == 'r')
-		{
-			printf("       RESTART? (y/n)       \n");
-			c = getchar();
-			if (c == 'y')
-			{
-				initBoard(board);
-				score = 0;
-			}
-			drawBoard(board, scheme, score);
+			break;
 		}
 	}
+	close(input_fd);
+
 	setBufferedInput(true);
 
 	// make cursor visible, reset all modes
