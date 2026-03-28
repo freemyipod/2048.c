@@ -1,0 +1,40 @@
+name: Build ARM Static Binary
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    env:
+      CC: arm-linux-gnueabihf-gcc
+      CFLAGS: "-std=c99 -Wextra -O2 -static"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install ARM cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
+
+      - name: Build using Makefile
+        run: |
+          make
+
+      - name: Strip binary
+        run: |
+          arm-linux-gnueabihf-strip 2048
+
+      - name: Verify binary
+        run: |
+          file 2048
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: 2048-arm-static
+          path: 2048
